@@ -24,9 +24,20 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS Configuration
+// CORS Configuration (supports local dev, custom domain, Vercel preview domains)
 app.use(cors({
-  origin: [CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000'],
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (
+      origin === CLIENT_URL ||
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1') ||
+      origin.endsWith('.vercel.app')
+    ) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
@@ -80,17 +91,22 @@ app.use('/api/*', (req, res) => {
 // Central Error Handler
 app.use(errorHandler);
 
-const server = app.listen(PORT, () => {
-  console.log(`===============================================`);
-  console.log(` AI Editorial Workspace Server Running`);
-  console.log(` Port: ${PORT}`);
-  console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(` Health: http://localhost:${PORT}/api/health`);
-  console.log(`===============================================`);
-});
+let server;
+if (process.env.VERCEL !== '1') {
+  server = app.listen(PORT, () => {
+    console.log(`===============================================`);
+    console.log(` AI Editorial Workspace Server Running`);
+    console.log(` Port: ${PORT}`);
+    console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(` Health: http://localhost:${PORT}/api/health`);
+    console.log(`===============================================`);
+  });
+}
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[Unhandled Rejection at Promise]', reason);
 });
 
-module.exports = { app, server };
+module.exports = app;
+module.exports.app = app;
+module.exports.server = server;
