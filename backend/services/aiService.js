@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const axios = require('axios');
 
 class AIService {
   constructor() {
@@ -17,17 +18,48 @@ class AIService {
     return this.genAI.getGenerativeModel({ model: modelName });
   }
 
+  async callNvidiaApi(prompt, systemPrompt = '') {
+    const apiKey = process.env.NVIDIA_API_KEY;
+    if (!apiKey) return null;
+
+    try {
+      const response = await axios.post(
+        'https://integrate.api.nvidia.com/v1/chat/completions',
+        {
+          model: process.env.NVIDIA_MODEL || 'mistralai/mistral-large-4-1t-a52b',
+          messages: [
+            ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 3500
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 25000
+        }
+      );
+
+      const content = response.data?.choices?.[0]?.message?.content;
+      return content || null;
+    } catch (err) {
+      console.warn('[AIService] NVIDIA API invocation note:', err.response?.data?.detail || err.message);
+      return null;
+    }
+  }
+
   cleanJsonResponse(rawText) {
     if (!rawText) return null;
     let cleaned = rawText.trim();
-    // Strip markdown code fences if present
     if (cleaned.startsWith('```')) {
       cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
     }
     try {
       return JSON.parse(cleaned);
     } catch (err) {
-      // Try to extract first JSON object/array
       const jsonMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
       if (jsonMatch) {
         return JSON.parse(jsonMatch[0]);
@@ -42,20 +74,14 @@ class AIService {
   async generateResearchBrief(topic, sources) {
     const model = this.getModel();
 
-    // Prepare sources context
     const sourcesSummary = sources.map((s, idx) => ({
       index: idx + 1,
       id: String(s._id || s.id),
       title: s.title || 'Untitled',
       publisher: s.publisher || 'Unknown',
       url: s.url || '',
-      content: (s.extractedContent || '').slice(0, 4500) // bounded content length
+      content: (s.extractedContent || '').slice(0, 4500)
     }));
-
-    if (!model) {
-      console.warn('[AIService] GEMINI_API_KEY not configured. Generating deterministic fallback research brief.');
-      return this.generateFallbackResearchBrief(topic, sourcesSummary);
-    }
 
     const prompt = `
 You are a senior AI industry research analyst and newsletter editor for "This Week in AI".
@@ -125,35 +151,44 @@ Strict requirements:
 }
 `;
 
-    try {
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      const parsed = this.cleanJsonResponse(text);
-
-      // Validate sourceId references in evidence items
-      const validSourceIds = new Set(sourcesSummary.map(s => s.id));
-      if (Array.isArray(parsed.evidence)) {
-        parsed.evidence = parsed.evidence.map(ev => {
-          let sId = ev.sourceId;
-          if (!validSourceIds.has(sId)) {
-            // Find by matching sourceUrl or sourceTitle or pick first source
-            const found = sourcesSummary.find(s => s.url === ev.sourceUrl || s.title === ev.sourceTitle) || sourcesSummary[0];
-            sId = found ? found.id : sourcesSummary[0].id;
-          }
-          return {
-            ...ev,
-            sourceId: sId
-          };
-        });
+    // 1. Try Gemini
+    if (model) {
+      try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        return this.validateAndFormatBrief(this.cleanJsonResponse(response.text()), sourcesSummary);
+      } catch (err) {
+        console.error('[AIService] Gemini error:', err.message);
       }
-
-      return parsed;
-    } catch (err) {
-      console.error('[AIService] Gemini API error during research generation:', err.message);
-      // Fallback gracefully so workflow continues
-      return this.generateFallbackResearchBrief(topic, sourcesSummary);
     }
+
+    // 2. Try NVIDIA API if configured
+    const nvidiaRaw = await this.callNvidiaApi(prompt, 'You are an AI research editor. Return valid JSON only.');
+    if (nvidiaRaw) {
+      try {
+        return this.validateAndFormatBrief(this.cleanJsonResponse(nvidiaRaw), sourcesSummary);
+      } catch (err) {
+        console.warn('[AIService] Failed parsing NVIDIA JSON output:', err.message);
+      }
+    }
+
+    // 3. Fallback synthesis
+    return this.generateFallbackResearchBrief(topic, sourcesSummary);
+  }
+
+  validateAndFormatBrief(parsed, sourcesSummary) {
+    const validSourceIds = new Set(sourcesSummary.map(s => s.id));
+    if (Array.isArray(parsed.evidence)) {
+      parsed.evidence = parsed.evidence.map(ev => {
+        let sId = ev.sourceId;
+        if (!validSourceIds.has(sId)) {
+          const found = sourcesSummary.find(s => s.url === ev.sourceUrl || s.title === ev.sourceTitle) || sourcesSummary[0];
+          sId = found ? found.id : sourcesSummary[0].id;
+        }
+        return { ...ev, sourceId: sId };
+      });
+    }
+    return parsed;
   }
 
   /**
@@ -161,11 +196,6 @@ Strict requirements:
    */
   async analyzeWriting(text) {
     const model = this.getModel();
-
-    if (!model) {
-      console.warn('[AIService] GEMINI_API_KEY not configured. Using rule-based writing analysis.');
-      return this.generateRuleBasedWritingAnalysis(text);
-    }
 
     const prompt = `
 You are a master editorial writing coach inspired by the Hemingway Editor, specializing in clear, punchy, accessible tech and business writing for newsletters.
@@ -197,18 +227,31 @@ CRITICAL RULES:
 ]
 `;
 
-    try {
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const parsed = this.cleanJsonResponse(response.text());
-      const suggestions = Array.isArray(parsed) ? parsed : (parsed.suggestions || []);
-
-      // Verify that originalText actually exists in draft
-      return suggestions.filter(s => s.originalText && text.includes(s.originalText));
-    } catch (err) {
-      console.error('[AIService] Gemini API writing analysis error:', err.message);
-      return this.generateRuleBasedWritingAnalysis(text);
+    if (model) {
+      try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const parsed = this.cleanJsonResponse(response.text());
+        const suggestions = Array.isArray(parsed) ? parsed : (parsed.suggestions || []);
+        return suggestions.filter(s => s.originalText && text.includes(s.originalText));
+      } catch (err) {
+        console.error('[AIService] Gemini writing analysis error:', err.message);
+      }
     }
+
+    const nvidiaRaw = await this.callNvidiaApi(prompt, 'You are an expert editorial coach. Return a JSON array only.');
+    if (nvidiaRaw) {
+      try {
+        const parsed = this.cleanJsonResponse(nvidiaRaw);
+        const suggestions = Array.isArray(parsed) ? parsed : (parsed.suggestions || []);
+        const valid = suggestions.filter(s => s.originalText && text.includes(s.originalText));
+        if (valid.length > 0) return valid;
+      } catch (err) {
+        console.warn('[AIService] Failed parsing NVIDIA writing JSON:', err.message);
+      }
+    }
+
+    return this.generateRuleBasedWritingAnalysis(text);
   }
 
   /**
@@ -216,13 +259,7 @@ CRITICAL RULES:
    */
   async generateNewsletter(topic, researchBrief, selectedAngle, sources) {
     const model = this.getModel();
-
     const sourcesList = sources.map(s => `- ${s.title}: ${s.url}`).join('\n');
-
-    if (!model) {
-      console.warn('[AIService] GEMINI_API_KEY not configured. Using fallback newsletter generator.');
-      return this.generateFallbackNewsletter(topic, selectedAngle, sources);
-    }
 
     const prompt = `
 You are the lead editor of "This Week in AI", a high-signal newsletter read by founders, builders, and AI leaders.
@@ -240,10 +277,10 @@ ${sourcesList}
 Editorial Constraints:
 1. Target length: 300 to 500 words.
 2. Structure:
-   - Compelling, memorable headline (punchy, informative, no clickbait).
-   - What happened (clear, factual explanation of the breakthrough or announcement).
-   - Context & background (why this occurred now).
-   - Why it matters to founders and engineers (tactical, commercial, or architecture implications).
+   - Compelling, memorable headline.
+   - What happened.
+   - Context & background.
+   - Why it matters to founders and engineers.
    - Practical takeaway, strategic question, or opportunity for operators.
    - Mention key sources with their context.
 3. Tone: authoritative, direct, evidence-backed, energetic, zero fluff.
@@ -255,19 +292,31 @@ Editorial Constraints:
 }
 `;
 
-    try {
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const parsed = this.cleanJsonResponse(response.text());
-      return parsed;
-    } catch (err) {
-      console.error('[AIService] Gemini API error during newsletter generation:', err.message);
-      return this.generateFallbackNewsletter(topic, selectedAngle, sources);
+    if (model) {
+      try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        return this.cleanJsonResponse(response.text());
+      } catch (err) {
+        console.error('[AIService] Gemini newsletter error:', err.message);
+      }
     }
+
+    const nvidiaRaw = await this.callNvidiaApi(prompt, 'You are lead editor of This Week in AI. Return valid JSON only.');
+    if (nvidiaRaw) {
+      try {
+        const parsed = this.cleanJsonResponse(nvidiaRaw);
+        if (parsed.headline && parsed.body) return parsed;
+      } catch (err) {
+        console.warn('[AIService] Failed parsing NVIDIA newsletter JSON:', err.message);
+      }
+    }
+
+    return this.generateFallbackNewsletter(topic, selectedAngle, sources);
   }
 
   /**
-   * Fallback research brief when API key is unavailable or throttled.
+   * Fallback research brief.
    */
   generateFallbackResearchBrief(topic, sourcesSummary) {
     const primarySource = sourcesSummary[0] || { id: 's1', title: 'Primary Source', url: 'https://example.com' };
@@ -438,7 +487,6 @@ Editorial Constraints:
       }
     }
 
-    // Deduplicate suggestions by originalText
     const seen = new Set();
     return suggestions.filter(s => {
       const key = `${s.issueType}_${s.originalText}`;
@@ -449,7 +497,6 @@ Editorial Constraints:
   }
 
   shortenSentence(sentence) {
-    // Basic heuristic: split on commas or 'which'/'that'
     const parts = sentence.split(/,\s*(?:which|that|and)\s*/);
     if (parts.length > 1) {
       return `${parts[0].trim()}. Furthermore, ${parts[1].trim()}`;
@@ -481,4 +528,3 @@ ${sources.map(s => `- [${s.title}](${s.url})`).join('\n')}`;
 }
 
 module.exports = new AIService();
-
