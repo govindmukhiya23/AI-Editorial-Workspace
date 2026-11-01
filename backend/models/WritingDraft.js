@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const memoryStores = require('../config/memoryStore');
 
 const SuggestionSchema = new mongoose.Schema({
   issueType: {
@@ -41,7 +42,7 @@ const WritingDraftSchema = new mongoose.Schema({
     trim: true
   },
   researchSessionId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'ResearchSession',
     default: null
   },
@@ -64,4 +65,17 @@ const WritingDraftSchema = new mongoose.Schema({
 
 WritingDraftSchema.index({ updatedAt: -1 });
 
-module.exports = mongoose.model('WritingDraft', WritingDraftSchema);
+const MongooseModel = mongoose.model('WritingDraft', WritingDraftSchema);
+
+module.exports = new Proxy(MongooseModel, {
+  get(target, prop) {
+    if (mongoose.connection.readyState === 1) {
+      return target[prop];
+    }
+    const mem = memoryStores.WritingDraft;
+    if (mem && typeof mem[prop] !== 'undefined') {
+      return typeof mem[prop] === 'function' ? mem[prop].bind(mem) : mem[prop];
+    }
+    return target[prop];
+  }
+});

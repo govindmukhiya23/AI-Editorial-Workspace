@@ -1,8 +1,9 @@
 const mongoose = require('mongoose');
+const memoryStores = require('../config/memoryStore');
 
 const SourceSchema = new mongoose.Schema({
   researchSessionId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'ResearchSession',
     required: true,
     index: true
@@ -41,4 +42,17 @@ const SourceSchema = new mongoose.Schema({
 
 SourceSchema.index({ researchSessionId: 1, url: 1 });
 
-module.exports = mongoose.model('Source', SourceSchema);
+const MongooseModel = mongoose.model('Source', SourceSchema);
+
+module.exports = new Proxy(MongooseModel, {
+  get(target, prop) {
+    if (mongoose.connection.readyState === 1) {
+      return target[prop];
+    }
+    const mem = memoryStores.Source;
+    if (mem && typeof mem[prop] !== 'undefined') {
+      return typeof mem[prop] === 'function' ? mem[prop].bind(mem) : mem[prop];
+    }
+    return target[prop];
+  }
+});

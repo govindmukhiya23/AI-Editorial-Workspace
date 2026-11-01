@@ -457,7 +457,7 @@ Editorial Constraints:
     return sentence;
   }
 
-  fallbackNewsletter(topic, selectedAngle, sources) {
+  generateFallbackNewsletter(topic, selectedAngle, sources) {
     const headline = selectedAngle || `How ${topic} Is Reshaping AI Development`;
     const body = `### ${headline}
 
@@ -481,3 +481,4 @@ ${sources.map(s => `- [${s.title}](${s.url})`).join('\n')}`;
 }
 
 module.exports = new AIService();
+

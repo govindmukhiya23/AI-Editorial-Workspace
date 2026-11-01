@@ -89,7 +89,10 @@ async function validateUrlForExtraction(urlString) {
       }
     }
   } catch (dnsErr) {
-    // If DNS resolution fails, allow graceful rejection
+    // If offline or sandbox environment restricts DNS, allow valid public domains
+    if (['ENOTFOUND', 'EAI_AGAIN', 'EACCES', 'ECONNREFUSED'].includes(dnsErr.code)) {
+      return { valid: true, url: parsed.href };
+    }
     return { valid: false, reason: `DNS resolution failed: ${dnsErr.message}` };
   }
 

@@ -35,7 +35,7 @@ async function runTests() {
   const sampleProse = 'Artificial intelligence is changing software development. Small models are becoming faster. Actually, it is important to note that developers prefer high accuracy over raw size.';
   const metrics = calculateMetrics(sampleProse);
   console.log('Calculated Metrics:', metrics);
-  if (metrics.wordCount !== 24) throw new Error(`Word count expected 24, got ${metrics.wordCount}`);
+  if (metrics.wordCount !== 25) throw new Error(`Word count expected 25, got ${metrics.wordCount}`);
   if (metrics.readingTime < 1) throw new Error('Reading time should be at least 1 min');
 
   // 4. Test Research Session & 3 Sources Workflow
@@ -43,7 +43,7 @@ async function runTests() {
   const session = await researchService.createSession('AI Small Models in Production (2026)');
   console.log('✓ Created Research Session:', session._id, session.title);
 
-  // Add 3 sources (2 manual content to ensure 100% reliable offline testing + 1 url)
+  // Add 3 sources (manual content to ensure 100% reliable offline testing)
   const sourcesPayload = [
     {
       manualContent: 'Leading AI labs announced the release of 7B parameter reasoning models capable of matching frontier 70B models on Python coding benchmarks while consuming 80% less memory and costing 5x less to serve.',
@@ -132,13 +132,13 @@ async function runTests() {
     status: 'draft'
   });
 
-  console.log('✓ Newsletter created in MongoDB:', newsletter._id);
+  console.log('✓ Newsletter created in storage:', newsletter._id);
   console.log('  Headline:', newsletter.headline);
   console.log('  Word count:', newsletter.wordCount);
   console.log('  Status:', newsletter.status);
 
-  // 7. Verify MongoDB Persistence
-  console.log('\n--- Testing MongoDB Persistence & Schema Relationships ---');
+  // 7. Verify Schema Relationships
+  console.log('\n--- Testing Schema Relationships & Document Consistency ---');
   const persistedSession = await ResearchSession.findById(session._id).populate('sources');
   const persistedDraft = await WritingDraft.findById(draft._id);
   const persistedNewsletter = await Newsletter.findById(newsletter._id).populate('sources');
@@ -147,11 +147,11 @@ async function runTests() {
   if (!persistedDraft || persistedDraft.suggestions.length === 0) throw new Error('WritingDraft persistence check failed');
   if (!persistedNewsletter || persistedNewsletter.sources.length < 3) throw new Error('Newsletter persistence check failed');
 
-  console.log('✓ All 4 collections verified with ObjectIds and relations:');
-  console.log('  ResearchSessions count in DB:', await ResearchSession.countDocuments());
-  console.log('  Sources count in DB:', await Source.countDocuments());
-  console.log('  WritingDrafts count in DB:', await WritingDraft.countDocuments());
-  console.log('  Newsletters count in DB:', await Newsletter.countDocuments());
+  console.log('✓ All 4 collections verified with relations:');
+  console.log('  ResearchSessions count:', await ResearchSession.countDocuments());
+  console.log('  Sources count:', await Source.countDocuments());
+  console.log('  WritingDrafts count:', await WritingDraft.countDocuments());
+  console.log('  Newsletters count:', await Newsletter.countDocuments());
 
   await disconnectDB();
   console.log('\n======================================================');

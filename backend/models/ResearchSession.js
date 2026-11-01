@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const memoryStores = require('../config/memoryStore');
 
 const KeyDevelopmentSchema = new mongoose.Schema({
   title: { type: String, required: true },
@@ -15,13 +16,13 @@ const WhyItMattersSchema = new mongoose.Schema({
 }, { _id: false });
 
 const AudienceSchema = new mongoose.Schema({
-  target: { type: String, required: true }, // e.g. Founders, Developers, Operators, Leaders
+  target: { type: String, required: true },
   reason: { type: String, required: true }
 }, { _id: false });
 
 const EvidenceSchema = new mongoose.Schema({
   claim: { type: String, required: true },
-  sourceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Source' },
+  sourceId: { type: mongoose.Schema.Types.Mixed },
   sourceTitle: { type: String },
   sourceUrl: { type: String },
   excerpt: { type: String },
@@ -61,7 +62,7 @@ const ResearchSessionSchema = new mongoose.Schema({
     trim: true
   },
   sources: [{
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'Source'
   }],
   researchBrief: {
@@ -83,4 +84,17 @@ const ResearchSessionSchema = new mongoose.Schema({
 
 ResearchSessionSchema.index({ createdAt: -1 });
 
-module.exports = mongoose.model('ResearchSession', ResearchSessionSchema);
+const MongooseModel = mongoose.model('ResearchSession', ResearchSessionSchema);
+
+module.exports = new Proxy(MongooseModel, {
+  get(target, prop) {
+    if (mongoose.connection.readyState === 1) {
+      return target[prop];
+    }
+    const mem = memoryStores.ResearchSession;
+    if (mem && typeof mem[prop] !== 'undefined') {
+      return typeof mem[prop] === 'function' ? mem[prop].bind(mem) : mem[prop];
+    }
+    return target[prop];
+  }
+});

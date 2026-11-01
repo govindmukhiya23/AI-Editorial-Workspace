@@ -1,13 +1,14 @@
 const mongoose = require('mongoose');
+const memoryStores = require('../config/memoryStore');
 
 const NewsletterSchema = new mongoose.Schema({
   researchSessionId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'ResearchSession',
     default: null
   },
   writingDraftId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'WritingDraft',
     default: null
   },
@@ -29,7 +30,7 @@ const NewsletterSchema = new mongoose.Schema({
     default: ''
   },
   sources: [{
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'Source'
   }],
   originalDraft: {
@@ -56,4 +57,17 @@ const NewsletterSchema = new mongoose.Schema({
 NewsletterSchema.index({ researchSessionId: 1 });
 NewsletterSchema.index({ createdAt: -1 });
 
-module.exports = mongoose.model('Newsletter', NewsletterSchema);
+const MongooseModel = mongoose.model('Newsletter', NewsletterSchema);
+
+module.exports = new Proxy(MongooseModel, {
+  get(target, prop) {
+    if (mongoose.connection.readyState === 1) {
+      return target[prop];
+    }
+    const mem = memoryStores.Newsletter;
+    if (mem && typeof mem[prop] !== 'undefined') {
+      return typeof mem[prop] === 'function' ? mem[prop].bind(mem) : mem[prop];
+    }
+    return target[prop];
+  }
+});

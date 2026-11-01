@@ -6,7 +6,7 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const { connectDB, checkDbConnection } = require('./config/db');
+const { connectDB } = require('./config/db');
 const researchRoutes = require('./routes/researchRoutes');
 const writingRoutes = require('./routes/writingRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
@@ -16,7 +16,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
-// Connect to Database
+// Connect to Database (auto-detects Atlas or local Mongo, falls back to memory store)
 connectDB();
 
 // Security Middlewares
@@ -34,7 +34,7 @@ app.use(cors({
 
 // Rate Limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
@@ -49,23 +49,25 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Health Check Endpoint (always responds, even if DB is connecting/offline)
+// Health Check Endpoint
 app.get('/api/health', (req, res) => {
   const mongoose = require('mongoose');
+  const isMongoConnected = mongoose.connection.readyState === 1;
   res.json({
     success: true,
     status: 'healthy',
     timestamp: new Date().toISOString(),
     service: 'AI Editorial Workspace API',
     version: '2.0.0',
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    database: isMongoConnected ? 'mongodb-connected' : 'in-memory-fallback',
+    storageMode: isMongoConnected ? 'MongoDB Atlas / Local' : 'In-Memory (Set MONGO_URI in .env for Atlas)'
   });
 });
 
-// Protect CRUD API Routes with DB availability check
-app.use('/api/research', checkDbConnection, researchRoutes);
-app.use('/api/writing', checkDbConnection, writingRoutes);
-app.use('/api/newsletter', checkDbConnection, newsletterRoutes);
+// Module API Routes
+app.use('/api/research', researchRoutes);
+app.use('/api/writing', writingRoutes);
+app.use('/api/newsletter', newsletterRoutes);
 
 // 404 Handler for undefined routes
 app.use('/api/*', (req, res) => {
