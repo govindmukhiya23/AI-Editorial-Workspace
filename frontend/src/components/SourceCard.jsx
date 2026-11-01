@@ -185,3 +185,4 @@ export default function SourceCard({ source, index, onRetry, onManualSubmit }) {
     </div>
   );
 }
+

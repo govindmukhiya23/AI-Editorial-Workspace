@@ -40,3 +40,4 @@ In 2026, the winning AI applications will not be built on the biggest models—t
 - [Benchmarking Small Reasoning Models in 2026](https://example.com/small-reasoning-models) – *AI Engineering Review*
 - [The Shift to Compound AI Systems](https://example.com/compound-ai-architectures) – *VentureScale Insights*
 - [Quantization & Infrastructure Trends](https://example.com/quantized-cloud-deployments) – *Cloud Native AI Journal*
+

@@ -41,3 +41,4 @@ While AI tools supported rapid scaffolding, all core technical architecture, sec
 5. **End-to-End Testing & Verification:**
    - Created comprehensive verification tests (`test-api.js`) covering URL validation, extraction, brief synthesis, Hemingway writing checks, and newsletter persistence.
    - Personally tested the UI across desktop and laptop breakpoints.
+

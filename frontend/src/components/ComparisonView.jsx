@@ -78,3 +78,4 @@ export default function ComparisonView({ originalText, revisedText, suggestions 
     </div>
   );
 }
+

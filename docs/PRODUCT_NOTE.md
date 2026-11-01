@@ -72,3 +72,4 @@ The AI Editorial Workspace was designed around six foundational principles:
 2. **Evidence Coverage:** 100% of claims backed by traceable source excerpts.
 3. **Draft Improvement:** Average sentence length reduction from >25 words to 14–18 words, boosting readability score from <50 to >65.
 4. **Adoption Rate:** High percentage of newsletters finalized through the integrated Writing Assistant before publishing.
+

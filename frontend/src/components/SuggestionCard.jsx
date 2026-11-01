@@ -125,3 +125,4 @@ export default function SuggestionCard({ suggestion, onAccept, onReject, isUpdat
     </div>
   );
 }
+

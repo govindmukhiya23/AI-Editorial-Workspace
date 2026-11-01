@@ -11,3 +11,4 @@ router.patch('/:id/status', validateObjectId('id'), newsletterController.updateS
 router.delete('/:id', validateObjectId('id'), newsletterController.deleteNewsletter);
 
 module.exports = router;
+

@@ -145,3 +145,4 @@ class WritingService {
 }
 
 module.exports = new WritingService();
+

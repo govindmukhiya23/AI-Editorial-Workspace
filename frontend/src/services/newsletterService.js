@@ -8,3 +8,4 @@ export const newsletterApi = {
   updateStatus: (id, status) => api.patch(`/newsletter/${id}/status`, { status }),
   deleteNewsletter: (id) => api.delete(`/newsletter/${id}`)
 };
+

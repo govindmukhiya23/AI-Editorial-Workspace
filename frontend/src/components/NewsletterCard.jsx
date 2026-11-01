@@ -125,3 +125,4 @@ export default function NewsletterCard({ newsletter, onDelete, onStatusChange })
     </div>
   );
 }
+

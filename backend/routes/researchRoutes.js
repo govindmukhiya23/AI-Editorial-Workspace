@@ -14,3 +14,4 @@ router.post('/sources/:sourceId/extract', validateObjectId('sourceId'), research
 router.put('/sources/:sourceId/manual', validateObjectId('sourceId'), researchController.updateManualSource);
 
 module.exports = router;
+

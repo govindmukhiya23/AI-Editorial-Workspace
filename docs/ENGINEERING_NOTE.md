@@ -106,3 +106,4 @@ The application uses MongoDB Atlas with four distinct collections referenced via
 - **Zero-Crash Server Boot:** If `MONGO_URI` is not configured at startup, the server still boots cleanly, serves `/api/health`, and returns clean HTTP 503 responses for database endpoints, preventing container crash-loops.
 - **AI Quota & Offline Resilience:** If `GEMINI_API_KEY` is omitted or throttled, `AIService` includes deterministic editorial fallbacks that generate realistic briefs, writing reviews, and newsletter drafts so developers and reviewers can test all UX workflows without API barriers.
 - **Overlapping Suggestion Protection:** If an accepted edit modifies the draft, subsequent replacements safely verify that target substrings still exist in `revisedText` before executing substitutions.
+

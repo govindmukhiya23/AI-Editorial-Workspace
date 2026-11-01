@@ -10,3 +10,4 @@ export const writingApi = {
   getComparison: (draftId) => api.get(`/writing/${draftId}/compare`),
   deleteDraft: (id) => api.delete(`/writing/${id}`)
 };
+

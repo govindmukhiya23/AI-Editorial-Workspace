@@ -134,3 +134,4 @@ exports.deleteNewsletter = async (req, res, next) => {
     next(err);
   }
 };
+

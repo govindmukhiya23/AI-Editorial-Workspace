@@ -11,3 +11,4 @@ export const researchApi = {
   extractSource: (sourceId) => api.post(`/research/sources/${sourceId}/extract`),
   updateManualSource: (sourceId, data) => api.put(`/research/sources/${sourceId}/manual`, data)
 };
+

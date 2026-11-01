@@ -316,3 +316,4 @@ export default function ResearchBrief({ session, sources }) {
     </div>
   );
 }
+

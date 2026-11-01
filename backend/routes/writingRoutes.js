@@ -12,3 +12,4 @@ router.get('/:id/compare', validateObjectId('id'), writingController.getComparis
 router.delete('/:id', validateObjectId('id'), writingController.deleteDraft);
 
 module.exports = router;
+
